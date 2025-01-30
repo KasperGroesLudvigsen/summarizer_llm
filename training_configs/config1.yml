@@ -1,0 +1,27 @@
+wandb_config:
+  wandb_project: "llm_dialog_summarizer_faster"
+  run_name: SmolLM2-135M-baseline
+
+model_config:
+  model_id: "HuggingFaceTB/SmolLM2-135M"
+  load_in_4bit: False
+  max_seq_length: 8192
+
+lora_config:
+  r: 16
+  lora_alpha: 16
+  use_rslora: True
+
+sft_config:
+  learning_rate: 0.0003 
+  epochs: 1
+  optimizer: "adamw_8bit"
+  warmup_steps: 100
+  weight_decay: 0.01
+  lr_scheduler_type: "linear"
+  seed: 90201
+  dataset_text_field: "text"
+  epochs: 1
+
+
+

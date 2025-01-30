@@ -1,0 +1,23 @@
+wandb_config:
+  wandb_project: "llm_dialog_summarizer_faster"
+  run_name: SmolLM2-360M-Instruct-large-R
+
+model_config:
+  model_id: "HuggingFaceTB/SmolLM2-360M-Instruct"
+  load_in_4bit: False
+  max_seq_length: 8192
+
+lora_config:
+  r: 64
+  lora_alpha: 64
+  use_rslora: True
+
+sft_config:
+  learning_rate: 0.0003
+  epochs: 2
+  optimizer: "adamw_8bit"
+  warmup_steps: 100
+  weight_decay: 0.01
+  lr_scheduler_type: "linear"
+  seed: 90201
+  dataset_text_field: "text"
