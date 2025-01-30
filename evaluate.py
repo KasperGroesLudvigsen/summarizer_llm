@@ -15,10 +15,8 @@ from datasets import load_dataset, concatenate_datasets
 from copy import copy
 import torch 
 import os
-from get_topics import get_topics
 import random 
 
-topics = get_topics()
 
 def make_prompt(example: dict) -> dict:
     topic = random.choice(topics)
@@ -28,8 +26,6 @@ def make_prompt(example: dict) -> dict:
     return {"prompt": [{"role": "user", "content": prompt}]}
 
 
-
-print(random.choice(topics))
 
 token = os.getenv("HF_TOKEN") 
 
