@@ -1,12 +1,13 @@
 from datasets import load_dataset
 import pandas as pd
 import spacy
+from tqdm import tqdm
 
 def compute_hallucinated_entities(df, summary_col, model_cols):
     nlp = spacy.load("en_core_web_sm")
     results = {col: [] for col in model_cols}
     
-    for _, row in df.iterrows():
+    for _, row in tqdm(df.iterrows(), total=len(df), desc="Computing hallucinated entities"):
         gold_entities = {ent.text for ent in nlp(row[summary_col]).ents}
         
         for col in model_cols:
