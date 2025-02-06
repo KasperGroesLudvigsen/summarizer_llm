@@ -18,7 +18,7 @@ max_tokens = 8192
 num_samples = 100 # 10000
 
 model_ids = ["ThatsGroes/SmolLM2-360M-Instruct-summarizer", "ThatsGroes/SmolLM2-1.7B-Instruct-summarizer", "HuggingFaceTB/SmolLM2-1.7B-Instruct", "HuggingFaceTB/SmolLM2-360M-Instruct"]
-model_ids = ["ThatsGroes/SmolLM2-360M-Instruct-summarizer"]
+#model_ids = ["ThatsGroes/SmolLM2-360M-Instruct-summarizer"]
 
 # Load dataset1
 dataset_id1 = "ThatsGroes/synthetic-dialog-summaries-processed-clean-chatml" #"ThatsGroes/synthetic-dialog-summaries-processed-clean"
