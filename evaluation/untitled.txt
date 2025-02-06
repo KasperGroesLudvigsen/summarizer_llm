@@ -1,0 +1,6 @@
+Examples of poor performance of model 4 in https://docs.google.com/spreadsheets/d/1_b_KyqLiItN6c6kKf_5J7fF-TQCKxCpJAm5aBeGe-Sk/edit?gid=1324976834#gid=1324976834
+
+Row no.:
+13
+11
+9
