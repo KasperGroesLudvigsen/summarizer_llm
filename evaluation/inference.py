@@ -44,8 +44,6 @@ for model_id in model_ids:
 
     model_suffixes.append(model_suffix)
 
-    model_id = model_ids[0]
-
     sampling_params = SamplingParams(temperature=temperature, top_p=top_p, max_tokens=max_tokens)
 
     llm = LLM(model=model_id, max_seq_len_to_capture=max_tokens)
