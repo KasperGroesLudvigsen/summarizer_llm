@@ -1,4 +1,6 @@
 """
+Run inference on evaluation split of synthetic dialogs
+
 TODO: Evaluate on google/Synthetic-Persona-Chat
 """
 from datasets import load_dataset
@@ -14,8 +16,8 @@ push_to = "ThatsGroes/LLM-summary-evaluation"
 
 temperature = 0.2
 top_p = 0.8
-max_tokens = 8192
-num_samples = 100 # 10000
+max_tokens = 8192//4
+num_samples = 10000
 
 model_ids = ["ThatsGroes/SmolLM2-360M-Instruct-summarizer", "ThatsGroes/SmolLM2-1.7B-Instruct-summarizer", "HuggingFaceTB/SmolLM2-1.7B-Instruct", "HuggingFaceTB/SmolLM2-360M-Instruct"]
 #model_ids = ["ThatsGroes/SmolLM2-360M-Instruct-summarizer"]
@@ -28,7 +30,7 @@ dataset = load_dataset(dataset_id1, split="test") #dataset.map(formatting_prompt
 dataset = dataset.shuffle(seed=90201)
 
 # only take from 5000 and up because the first 5000 were used as evaluation in training
-dataset = dataset.select(range(5000,num_samples))
+dataset = dataset.select(range(5000,5000+num_samples))
 
 prompts = [make_prompt(prompt) for prompt in dataset["dialog"]]
 
@@ -80,3 +82,4 @@ try:
 except Exception as e:
     print(f"Could not push to hub due to exception:\n{e}\nWill save to disk")
     dataset.save_to_disk("output_data")
+
