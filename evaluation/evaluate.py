@@ -2,25 +2,6 @@ from datasets import load_dataset
 import pandas as pd
 from bert_score import score as bert_score
 from rouge_score import rouge_scorer
-import spacy
-
-def compute_hallucinated_entities(df, summary_col, model_cols):
-    nlp = spacy.load("en_core_web_sm")
-    results = {col: [] for col in model_cols}
-    
-    for _, row in df.iterrows():
-        gold_entities = {ent.text for ent in nlp(row[summary_col]).ents}
-        
-        for col in model_cols:
-            model_entities = {ent.text for ent in nlp(row[col]).ents}
-            hallucinated_entities = model_entities - gold_entities
-            results[col].append(len(hallucinated_entities))
-    
-    for col in model_cols:
-        df[f'hallucinated_entities_{col}'] = results[col]
-    
-    return df
-
 
 def compute_scores(df, summary_col, model_cols):
     results = {col: {'bert': [], 'rouge-l': []} for col in model_cols}
@@ -63,7 +44,3 @@ df = dataset["test"].to_pandas()
 df_scores = compute_scores(df, 'summary', cols_to_analyze)
 
 df_scores.to_csv("scores.csv", index=False)
-
-df_entities = compute_hallucinated_entities(df, 'summary', cols_to_analyze)
-
-df_entities.to_csv("entities.csv", index=False)
