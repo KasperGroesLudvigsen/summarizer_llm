@@ -40,6 +40,8 @@ model_suffixes = []
 
 for model_id in model_ids:
 
+    print(f"\nWill run inference with: {model_id}\n")
+
     model_suffix = model_id.split("/")[-1]
 
     model_suffixes.append(model_suffix)
