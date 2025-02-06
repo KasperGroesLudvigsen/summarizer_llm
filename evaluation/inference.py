@@ -6,7 +6,7 @@ from vllm import LLM, SamplingParams
 from codecarbon import EmissionsTracker
 from datasets import load_dataset
 import torch 
-from utils import make_prompt
+from ..utils import make_prompt
 
 
 # push llm outputs to
