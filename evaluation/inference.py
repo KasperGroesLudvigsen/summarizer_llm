@@ -83,3 +83,5 @@ except Exception as e:
     print(f"Could not push to hub due to exception:\n{e}\nWill save to disk")
     dataset.save_to_disk("output_data")
 
+df = dataset.to_pandas()
+df.to_csv(push_to.split("/")[-1]+".csv", index=False)
