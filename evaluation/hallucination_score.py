@@ -21,7 +21,7 @@ def compute_hallucinated_entities(df, summary_col, model_cols):
     return df
 
 
-data_id = "ThatsGroes/LLM-summary-evaluation-extended"
+data_id = "ThatsGroes/LLM-summary-evaluation"
 
 dataset = load_dataset(data_id)
 
