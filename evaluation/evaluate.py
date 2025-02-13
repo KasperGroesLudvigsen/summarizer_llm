@@ -1,46 +1,120 @@
-from datasets import load_dataset
 import pandas as pd
-from bert_score import score as bert_score
+from datasets import load_dataset
+from bert_score import BERTScorer
 from rouge_score import rouge_scorer
+from flair.data import Sentence
+from flair.models import SequenceTagger
+from typing import Set, List
+from tqdm import tqdm
 
-def compute_scores(df, summary_col, model_cols):
-    results = {col: {'bert': [], 'rouge-l': []} for col in model_cols}
+# Enable tqdm for pandas
+tqdm.pandas()
 
-    scorer = rouge_scorer.RougeScorer(["rougeL"], use_stemmer=True)
+def get_data():
 
-    for _, row in df.iterrows():
-        gold_summary = row[summary_col]
+    data = load_dataset("ThatsGroes/LLM-summary-evaluation", trust_remote_code=True)
 
-        for col in model_cols:
-            model_summary = row[col]
+    df = data["test"].to_pandas()
 
-            # Compute BERTScore
-            P, R, F1 = bert_score([model_summary], [gold_summary], lang="en", rescale_with_baseline=True)
-            results[col]['bert'].append(F1.item())
+    id_vars = ["summary", "dialog", "system_prompt", "messages", "text", "prompt"]
 
-            # Compute ROUGE-L
-            rouge_scores = scorer.score(gold_summary, model_summary)
-            results[col]['rouge-l'].append(rouge_scores['rougeL'].fmeasure)
+    df = df.melt(id_vars=id_vars, var_name="model", value_name="model_output")
 
-    for col in model_cols:
-        df[f'bert_score_{col}'] = results[col]['bert']
-        df[f'rougeL_score_{col}'] = results[col]['rouge-l']
+    df["model"] = df["model"].str.replace("summary_by_", "")
+
+    df.dropna(subset=["summary", "model_output"], inplace=True)
+
+    df["dialog"] = df["dialog"].apply(lambda x: x.split("\n\n **Conversation:** \n\n")[-1].strip())
 
     return df
 
+df = get_data()
 
-data_id = "ThatsGroes/LLM-summary-evaluation-extended"
+############ 
+# NER
+############
+tagger = SequenceTagger.load("flair/ner-english-large")
 
-dataset = load_dataset(data_id)
+def extract_named_entities(text: str, allowed_entity_types: List[str]=None):
+    """Extract named entities from text using Flair's NER model."""
+    if pd.isna(text) or not isinstance(text, str):  # Handle NaN or non-string values
+        return []
+    
+    sentence = Sentence(text)
+    tagger.predict(sentence)
 
-model_ids = ["ThatsGroes/SmolLM2-360M-Instruct-summarizer", "ThatsGroes/SmolLM2-1.7B-Instruct-summarizer", "HuggingFaceTB/SmolLM2-1.7B-Instruct", "HuggingFaceTB/SmolLM2-360M-Instruct"]
+    # Define allowed entity types
 
-col_prefix = "summary_by_"
+    # Extract only the entities of interest
+    filtered_entities = {
+        entity.text for entity in sentence.get_spans('ner') if entity.tag in allowed_entity_types
+    }
+        
+    return filtered_entities
 
-cols_to_analyze = [col_prefix+id.split("/")[-1] for id in model_ids]
 
-df = dataset["test"].to_pandas()
+def difference_entities(row, col1: str="model_entities", col2: str="dialog_entities"):
+    """Find entities in column 'b' that are not in column 'c'."""
+    return row[col1] - row[col2]
 
-df_scores = compute_scores(df, 'summary', cols_to_analyze)
 
-df_scores.to_csv("scores.csv", index=False)
+allowed_entity_types = ["PER", "ORG", "LOC"]
+
+df["dialog_entities"] = df["dialog"].progress_apply(extract_named_entities, args=(allowed_entity_types,))
+
+df["model_entities"] = df["model_output"].progress_apply(extract_named_entities, args=(allowed_entity_types,))
+
+df["hallucinated_entities"] = df.apply(difference_entities, axis=1, args=("model_entities", "dialog_entities"))
+
+df["missed_entities"] = df.apply(difference_entities, axis=1, args=("dialog_entities", "model_entities"))
+
+df["num_missed_entities"] = df["missed_entities"].apply(lambda x: len(x))
+
+df["num_hallucinated_entities"] = df["hallucinated_entities"].apply(lambda x: len(x))
+
+df.to_csv("llm_summary_entities.csv", index=False)
+
+############
+# BERT and ROUGE-L
+###########
+bertscorer = BERTScorer(model_type="microsoft/deberta-xlarge-mnli", device="cuda") #BERTScorer(lang="en", device="cuda")
+rougescorer = rouge_scorer.RougeScorer(["rougeL"], use_stemmer=True)
+
+
+def compute_f1_bertscore(y_preds, y_trues):    
+
+    (P, R, F1), hash_value = bertscorer.score(y_preds, y_trues, return_hash=True)
+
+    #print(type(P))
+    return P.item(), R.item(), F1.item()
+
+
+def compute_rouge_l(y_preds, y_trues):
+    # Compute ROUGE-L
+    rouge_scores = rougescorer.score(y_trues, y_preds)
+    return rouge_scores['rougeL'].fmeasure
+    
+
+
+
+x_col = "model_output"
+
+y_col = "summary"
+
+df[["bert_precision", "bert_recall", "bert_f1"]] = df.apply(
+    lambda row: compute_f1_bertscore(
+        [row[x_col]], 
+        [row[y_col]]), 
+        axis=1,
+        result_type="expand"
+        )
+
+df["rouge_l"] = df.apply(
+    lambda row: compute_rouge_l(
+        row[x_col], 
+        row[y_col]
+        ), 
+        axis=1)
+
+df.to_csv("llm_summary_evaluation_results.csv", index=False)
+

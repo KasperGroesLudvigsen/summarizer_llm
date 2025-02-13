@@ -1,3 +1,5 @@
+**/llm_summary_evaluation_results.csv
+**/llm_summary_entities.csv
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
