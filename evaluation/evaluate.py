@@ -33,6 +33,14 @@ df = get_data()
 ############ 
 # NER
 ############
+# downloads to:
+# ~/.flair/models/ner-english-large 
+# C:\Users\<YourUsername>\.flair\models\ner-english-large
+# load from local: tagger = SequenceTagger.load("/my_models/flair_ner_large")
+# Copy folder:
+# mkdir -p /my_models/flair_ner_large
+# cp -r ~/.flair/models/ner-english-large/* /my_models/flair_ner_large/
+
 tagger = SequenceTagger.load("flair/ner-english-large")
 
 def extract_named_entities(text: str, allowed_entity_types: List[str]=None):
