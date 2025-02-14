@@ -1,89 +1,78 @@
 """
-Run inference on evaluation split of synthetic dialogs
+Generalized script for running inference with several models as part of evaluation
 
-TODO: Evaluate on google/Synthetic-Persona-Chat
+The script iterates over a list of HF model IDs and runs inference on the passed
+model input. Returns a datasets.Dataset object
+
 """
-from datasets import load_dataset
+from datasets import load_dataset, Dataset, concatenate_datasets
+import pandas as pd
+import re
 from vllm import LLM, SamplingParams
 from codecarbon import EmissionsTracker
-from datasets import load_dataset
-import torch 
+from copy import deepcopy
+from torch.cuda import empty_cache, is_available, get_device_capability
+from torch import device
+from typing import List, Dict
 from utils import make_prompt
 
+def is_bf16_supported():
+    """Checks if the GPU supports bfloat16 precision."""
+    if not is_available():
+        return False
 
-# push llm outputs to
-push_to = "ThatsGroes/LLM-summary-evaluation"
+    capability = get_device_capability(device("cuda"))
+    
+    # Ampere (8.0+) and later architectures support bfloat16
+    return capability[0] >= 8
 
-temperature = 0.2
-top_p = 0.8
-max_tokens = 8192//4
-num_samples = 10000
+print("BF16 supported:", is_bf16_supported())
 
-model_ids = ["ThatsGroes/SmolLM2-360M-Instruct-summarizer", "ThatsGroes/SmolLM2-1.7B-Instruct-summarizer", "HuggingFaceTB/SmolLM2-1.7B-Instruct", "HuggingFaceTB/SmolLM2-360M-Instruct"]
-#model_ids = ["ThatsGroes/SmolLM2-360M-Instruct-summarizer"]
 
-# Load dataset1
-dataset_id1 = "ThatsGroes/synthetic-dialog-summaries-processed-clean-chatml" #"ThatsGroes/synthetic-dialog-summaries-processed-clean"
+def run_inference(model_input: List[List[Dict[str, str]]], # prompts made with utils.make_prompt()
+                  model_ids: List[str], 
+                  temperature: float, 
+                  top_p: float, 
+                  max_tokens: int) -> Dataset:
+    
+    """
+    Iterates over a list of HF model IDs and runs inference with each using VLLM.
+    Returns a Dataset object with three columns: model_input, model_output and model (the HF ID)
+    
+    """
 
-dataset = load_dataset(dataset_id1, split="test") #dataset.map(formatting_prompts_func, batched = True, fn_kwargs={"tokenizer": tokenizer, "col_to_process": col_to_process})
-
-dataset = dataset.shuffle(seed=90201)
-
-# only take from 5000 and up because the first 5000 were used as evaluation in training
-dataset = dataset.select(range(5000,5000+num_samples))
-
-prompts = [make_prompt(prompt) for prompt in dataset["dialog"]]
-
-dataset = dataset.add_column("prompt", prompts)
-
-dataset = Dataset()
-
-system_prompt = "You are an expert in summarizing texts. Extract and present the main key point of the input text in one short sentence, including essential details like dates, locations, persons and organizations if necessary."
-
-model_suffixes = []
-
-for model_id in model_ids:
-
-    print(f"\nWill run inference with: {model_id}\n")
-
-    model_suffix = model_id.split("/")[-1]
-
-    model_suffixes.append(model_suffix)
 
     sampling_params = SamplingParams(temperature=temperature, top_p=top_p, max_tokens=max_tokens)
 
-    llm = LLM(model=model_id, max_seq_len_to_capture=max_tokens)
+    dataset = Dataset.from_dict({"model_input": model_input})
 
-    print("Starting inference..")
-    tracker = EmissionsTracker(project_name=model_id, measure_power_secs=1)
-    tracker.start()
-    outputs = llm.chat(dataset["prompt"], sampling_params)
-    emissions = tracker.stop()
+    results = []
 
-    responses = [output.outputs[0].text for output in outputs]
+    dtype = "auto" if is_bf16_supported() else "half"
 
-    dataset = dataset.add_column(f"summary_by_{model_suffix}", responses)
+    for model_id in model_ids:
 
-    torch.cuda.empty_cache()
+        subset = deepcopy(dataset) 
 
-    # torch.cuda.empty_cache does not properly free up memory
-    del llm 
+        subset = subset.add_column("model", [model_id for i in range(len(subset))])
 
-try:
-    new_order = ["summary"]
-    new_order.extend(model_suffixes)
-    new_order.extend(["dialog", "system_prompt", "messages", "text"])
-    dataset = dataset.select_columns(new_order)
-except:
-    print("Did not rearrange column order")
+        llm = LLM(model=model_id, max_seq_len_to_capture=max_tokens, dtype=dtype)
 
+        print("Starting inference..")
+        tracker = EmissionsTracker(project_name=model_id, measure_power_secs=1)
+        tracker.start()
+        outputs = llm.chat(subset["model_input"], sampling_params)
+        emissions = tracker.stop()
 
-try:
-    dataset.push_to_hub(push_to)
+        subset = subset.add_column("model_output", [output.outputs[0].text for output in outputs])
 
-except Exception as e:
-    print(f"Could not push to hub due to exception:\n{e}\nWill save to disk")
-    dataset.save_to_disk("output_data")
+        results.append(subset)
 
-df = dataset.to_pandas()
-df.to_csv(push_to.split("/")[-1]+".csv", index=False)
+        empty_cache()
+
+        # torch.cuda.empty_cache does not properly free up memory
+        del llm 
+
+    results = concatenate_datasets(results)
+
+    return results
