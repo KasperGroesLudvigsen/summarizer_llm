@@ -6,29 +6,12 @@ from flair.data import Sentence
 from flair.models import SequenceTagger
 from typing import Set, List
 from tqdm import tqdm
+from datetime import date
+import argparse
 
 # Enable tqdm for pandas
 tqdm.pandas()
 
-def get_data():
-
-    data = load_dataset("ThatsGroes/LLM-summary-evaluation", trust_remote_code=True)
-
-    df = data["test"].to_pandas()
-
-    id_vars = ["summary", "dialog", "system_prompt", "messages", "text", "prompt"]
-
-    df = df.melt(id_vars=id_vars, var_name="model", value_name="model_output")
-
-    df["model"] = df["model"].str.replace("summary_by_", "")
-
-    df.dropna(subset=["summary", "model_output"], inplace=True)
-
-    df["dialog"] = df["dialog"].apply(lambda x: x.split("\n\n **Conversation:** \n\n")[-1].strip())
-
-    return df
-
-df = get_data()
 
 ############ 
 # NER
@@ -41,8 +24,9 @@ df = get_data()
 # mkdir -p /my_models/flair_ner_large
 # cp -r ~/.flair/models/ner-english-large/* /my_models/flair_ner_large/
 
-tagger = SequenceTagger.load("flair/ner-english-large")
 
+tagger = SequenceTagger.load("flair/ner-english-large")
+ 
 def extract_named_entities(text: str, allowed_entity_types: List[str]=None):
     """Extract named entities from text using Flair's NER model."""
     if pd.isna(text) or not isinstance(text, str):  # Handle NaN or non-string values
@@ -66,21 +50,24 @@ def difference_entities(row, col1: str="model_entities", col2: str="dialog_entit
     return row[col1] - row[col2]
 
 
-allowed_entity_types = ["PER", "ORG", "LOC"]
+def compute_named_entities(df: pd.DataFrame, model_input_col: str, model_output_col: str, allowed_entity_types: List) -> pd.DataFrame:
 
-df["dialog_entities"] = df["dialog"].progress_apply(extract_named_entities, args=(allowed_entity_types,))
+    df[f"entities_in_{model_input_col}"] = df[model_input_col].progress_apply(extract_named_entities, args=(allowed_entity_types,))
 
-df["model_entities"] = df["model_output"].progress_apply(extract_named_entities, args=(allowed_entity_types,))
+    df[f"entities_in_{model_output_col}"] = df[model_output_col].progress_apply(extract_named_entities, args=(allowed_entity_types,))
 
-df["hallucinated_entities"] = df.apply(difference_entities, axis=1, args=("model_entities", "dialog_entities"))
+    df["hallucinated_entities"] = df.apply(difference_entities, axis=1, args=(f"entities_in_{model_output_col}", f"entities_in_{model_input_col}"))
 
-df["missed_entities"] = df.apply(difference_entities, axis=1, args=("dialog_entities", "model_entities"))
+    df["missed_entities"] = df.apply(difference_entities, axis=1, args=("dialog_entities", "model_entities"))
 
-df["num_missed_entities"] = df["missed_entities"].apply(lambda x: len(x))
+    df["num_missed_entities"] = df["missed_entities"].apply(lambda x: len(x))
 
-df["num_hallucinated_entities"] = df["hallucinated_entities"].apply(lambda x: len(x))
+    df["num_hallucinated_entities"] = df["hallucinated_entities"].apply(lambda x: len(x))
 
-df.to_csv("llm_summary_entities.csv", index=False)
+    return df
+
+
+
 
 ############
 # BERT and ROUGE-L
@@ -103,26 +90,46 @@ def compute_rouge_l(y_preds, y_trues):
     return rouge_scores['rougeL'].fmeasure
     
 
+if __name__ == "__main__":
 
 
-x_col = "model_output"
+    parser = argparse.ArgumentParser(description="Evaluate LLM summaries using BERTScore, ROUGE-L, and NER.")
+    parser.add_argument("path", type=str, help="Path to the CSV file containing LLM outputs.")
+    args = parser.parse_args()
 
-y_col = "summary"
 
-df[["bert_precision", "bert_recall", "bert_f1"]] = df.apply(
-    lambda row: compute_f1_bertscore(
-        [row[x_col]], 
-        [row[y_col]]), 
-        axis=1,
-        result_type="expand"
+    x_col = "model_output"
+
+    y_col = "summary"
+
+    # load data with llm outputs
+    df = pd.read_csv(args.path)
+
+    allowed_entity_types = ["PER", "ORG", "LOC"]
+
+    df = compute_named_entities(
+        model_input_col=y_col,
+        model_output_col=x_col,
+        df=df,
+        allowed_entitiy_types=allowed_entity_types,
         )
 
-df["rouge_l"] = df.apply(
-    lambda row: compute_rouge_l(
-        row[x_col], 
-        row[y_col]
-        ), 
-        axis=1)
+    df[["bert_precision", "bert_recall", "bert_f1"]] = df.apply(
+        lambda row: compute_f1_bertscore(
+            [row[x_col]], 
+            [row[y_col]]), 
+            axis=1,
+            result_type="expand"
+            )
 
-df.to_csv("llm_summary_evaluation_results.csv", index=False)
+    df["rouge_l"] = df.apply(
+        lambda row: compute_rouge_l(
+            row[x_col], 
+            row[y_col]
+            ), 
+            axis=1)
+
+
+    df.to_csv(f"evaluation_results_{str(date.today())}.csv", index=False)
+
 
