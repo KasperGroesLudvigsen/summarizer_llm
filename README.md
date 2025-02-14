@@ -10,3 +10,5 @@ and calls the `train()` function in `train.py`.
 See my LLM fine tuning notebook for a walkthrough of the code and the related concepts:
 [LLM fine tuning notebook](https://colab.research.google.com/drive/18jraZF_nEv462wr7L9sMqVk6l4VACKCl#scrollTo=5e5xTWH7BgKD)
 
+# TODO
+1. Evaluate on dialogsum. See `evaluation/prepare_dialogsum.py` for data preparation script. Then convert to chatml and run inference

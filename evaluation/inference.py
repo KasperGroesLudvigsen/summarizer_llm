@@ -36,6 +36,8 @@ prompts = [make_prompt(prompt) for prompt in dataset["dialog"]]
 
 dataset = dataset.add_column("prompt", prompts)
 
+dataset = Dataset()
+
 system_prompt = "You are an expert in summarizing texts. Extract and present the main key point of the input text in one short sentence, including essential details like dates, locations, persons and organizations if necessary."
 
 model_suffixes = []
