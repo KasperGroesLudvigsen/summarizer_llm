@@ -13,3 +13,4 @@ See my LLM fine tuning notebook for a walkthrough of the training code and the r
 # TODO
 1. Run inference on dialogsum using "inference_dialogsum.py"
 2. Compute metrics. See functions in "evaluate.py"
+3. Load BERT and NER models from local
