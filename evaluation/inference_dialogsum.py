@@ -116,3 +116,7 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"Could not push to hub due to exception:\n{e}\nWill save to disk")
         results.save_to_disk("output_data")
+
+    results = results.to_pandas()
+
+    results.to_csv("model_output_dialogsum.csv", index=False)
