@@ -9,8 +9,3 @@ and calls the `train()` function in `train.py`.
 
 See my LLM fine tuning notebook for a walkthrough of the training code and the related concepts:
 [LLM fine tuning notebook](https://colab.research.google.com/drive/18jraZF_nEv462wr7L9sMqVk6l4VACKCl#scrollTo=5e5xTWH7BgKD)
-
-# TODO
-1. Run inference on dialogsum using "inference_dialogsum.py"
-2. Compute metrics. See functions in "evaluate.py"
-3. Load BERT and NER models from local
